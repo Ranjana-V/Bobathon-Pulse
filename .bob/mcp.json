@@ -1,0 +1,30 @@
+{
+  "mcpServers": {
+    "pulse": {
+      "command": "python3",
+      "args": ["/Users/ranjanav/p-ulse/pulse_core/mcp_server.py"],
+      "cwd": "/Users/ranjanav/p-ulse",
+      "alwaysAllow": [
+        "get_logs",
+        "get_metrics",
+        "get_deployments",
+        "get_pods",
+        "get_service_dependencies",
+        "query_incident_history",
+        "write_incident_step",
+        "write_incident_rca",
+        "run_fix",
+        "run_kubectl"
+      ],
+      "timeout": 60000
+    },
+    "elevenlabs": {
+      "command": "/Users/ranjanav/p-ulse/elevenlabs_mcp/venv/bin/python",
+      "args": ["/Users/ranjanav/p-ulse/elevenlabs_mcp/server.py"],
+      "cwd": "/Users/ranjanav/p-ulse/elevenlabs_mcp",
+      "alwaysAllow": ["elevenlabs_speak"],
+      "timeout": 30000
+    }
+  }
+}
+  
