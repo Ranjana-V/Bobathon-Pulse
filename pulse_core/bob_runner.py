@@ -90,10 +90,14 @@ def answer_question_with_bob(question: str, incident_context: str = "", chat_his
 - If asked about pods: call get_pods and list them.
 - Do NOT answer from memory for current-state questions -- always fetch live data.
 """
+    print(f"[CHAT] question received: {question[:200]}", flush=True)
+    voice_instruction = ""
+    if any(w in question.lower() for w in ["voice", "speak", "tell me", "read it out", "out loud","summarise"]):
+        voice_instruction = "\nVOICE REQUIRED: Before calling attempt_completion, you MUST call elevenlabs_speak with your complete answer text. Do not skip this.\n"
 
     prompt = f"""You are Pulse, an AI on-call assistant.{ctx_section}{history_section}
 QUESTION: {question}
-
+{voice_instruction}
 RESPONSE RULES:
 - Answer directly in 1-3 sentences. No preamble, no narration.
 - Do NOT restate the question. Just answer.
