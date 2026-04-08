@@ -315,8 +315,12 @@ def run_fix(action, service, incident_id, pod_name=None, replicas=None):
             result_text = f"Pod {pod_name} deleted. Service restored."
 
     elif action == "scale_replicas":
-        # Use exactly what BOB passes — no override
-        target = replicas if replicas else 5
+        # FIX: cast to int — BOB sometimes passes replicas as a string from JSON args
+        try:
+            target = int(replicas) if replicas is not None else 5
+        except (ValueError, TypeError):
+            target = 5
+
         command = f"kubectl scale deployment/{service} --replicas={target} -n default"
         print(f"[MCP run_fix] Running: {command}", flush=True)
 

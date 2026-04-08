@@ -1,3 +1,4 @@
+import subprocess
 from mcp.server.fastmcp import FastMCP
 import requests
 import os
@@ -36,7 +37,9 @@ def elevenlabs_speak(text: str) -> str:
     with open("speech.mp3", "wb") as f:
         f.write(response.content)
 
-    return "Audio saved to speech.mp3"
+    subprocess.run(["afplay", "speech.mp3"])
+
+    return "Audio spoken aloud"
 
 if __name__ == "__main__":
     mcp.run()

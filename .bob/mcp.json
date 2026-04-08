@@ -15,15 +15,15 @@
         "write_incident_rca",
         "run_fix",
         "run_kubectl"
-      ],
-      "timeout": 60000
+      ]
     },
     "elevenlabs": {
-      "command": "/Users/ranjanav/p-ulse/elevenlabs_mcp/venv/bin/python",
+      "command": "python3",
       "args": ["/Users/ranjanav/p-ulse/elevenlabs_mcp/server.py"],
-      "cwd": "/Users/ranjanav/p-ulse/elevenlabs_mcp",
-      "alwaysAllow": ["elevenlabs_speak"],
-      "timeout": 30000
+      "cwd": "/Users/ranjanav/p-ulse",
+      "alwaysAllow": [
+        "elevenlabs_speak"
+      ]
     }
   }
 }

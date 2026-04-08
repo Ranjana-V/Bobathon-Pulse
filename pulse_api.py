@@ -69,7 +69,7 @@ def clean_bob_response(raw: str) -> str:
     return text if text else "Investigation complete."
 
 
-STATIC_DIR = PULSE_DIR / "static"
+STATIC_DIR = PULSE_DIR / "frontend" / "build"
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -125,6 +125,27 @@ class Handler(BaseHTTPRequestHandler):
             inc["recommended_actions"] = json.loads(inc.get("recommended_actions") or "[]")
             inc["chat"] = get_chat_messages(parts[2])
             self.send_json(inc)
+            
+        elif path.startswith("/static/"):
+            file_path = STATIC_DIR / path.lstrip("/")
+            if file_path.exists():
+                suffix = file_path.suffix
+                content_types = {
+                    ".js": "application/javascript",
+                    ".css": "text/css",
+                    ".png": "image/png",
+                    ".ico": "image/x-icon",
+                    ".json": "application/json",
+                }
+                ct = content_types.get(suffix, "application/octet-stream")
+                body = file_path.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", ct)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            else:
+                self.send_json({"error": "not found"}, 404)
 
         else:
             self.send_json({"error": "not found"}, 404)
@@ -204,8 +225,7 @@ class Handler(BaseHTTPRequestHandler):
             result = {"messages": []}
 
             def run_chat():
-                answer = answer_question_with_bob(msg, context, chat_history)
-                clean = clean_bob_response(answer)
+                clean = answer_question_with_bob(msg, context, chat_history)
                 add_chat_message(incident_id, "bob", clean)
                 result["messages"] = get_chat_messages(incident_id)
 

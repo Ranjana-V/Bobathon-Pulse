@@ -44,3 +44,5 @@ Thumbs.db
 
 # Audio files
 *.mp3
+
+*node_modules/
