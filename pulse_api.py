@@ -22,52 +22,66 @@ init_db()
 
 
 def clean_bob_response(raw: str) -> str:
-    """Strip BOB shell artifacts. Use attempt_completion output as canonical answer."""
+    """Extract only the final ---output--- block from BOB's response."""
+    # Strip <thinking> blocks
     text = re.sub(r"<thinking>.*?</thinking>", "", raw, flags=re.DOTALL)
 
+    # Find attempt_completion output first (most reliable)
     completion_match = re.search(
         r"\[using tool attempt_completion:.*?\]\s*---output---\s*(.*?)\s*---output---",
         text, flags=re.DOTALL
     )
     if completion_match:
-        text = completion_match.group(1).strip()
-        if text:
-            return re.sub(r"\n{3,}", "\n\n", text)
+        result = completion_match.group(1).strip()
+        if result:
+            return re.sub(r"\n{3,}", "\n\n", result)
 
+    # Fall back: grab the LAST ---output--- block
+    parts = re.split(r"---output---", text)
+    if len(parts) >= 3:
+        # parts: [before, content, after, content, after...]
+        # odd indices are content blocks — take the last one
+        content_blocks = [parts[i].strip() for i in range(1, len(parts), 2)]
+        last = content_blocks[-1]
+        if last:
+            return re.sub(r"\n{3,}", "\n\n", last)
+
+    # Last resort: strip all tool/thinking lines
     lines = text.split("\n")
     cleaned = []
-    skip_until_output_end = False
-
+    skip = False
     for line in lines:
         s = line.strip()
-        if not s: continue
+        if not s:
+            continue
         if s.startswith("[BOB]"):
             s = s[5:].strip()
-        if not s: continue
+        if not s:
+            continue
         if s.startswith("[using tool "):
-            skip_until_output_end = True
+            skip = True
             continue
         if s.startswith("---output---"):
-            if skip_until_output_end:
-                skip_until_output_end = False
+            skip = False
             continue
-        if skip_until_output_end: continue
-        if s.startswith("---"): continue
+        if skip:
+            continue
+        if s.startswith("---"):
+            continue
         if any(s.startswith(p) for p in [
             "===", "PROMPT", "Cost:", "[CHAT]", "[INVESTIGATE", "[SIMULATE",
             "[BOB RUNNER]", "[RULEBOOK", "[FIX:", "[ERROR]",
             "<thinking>", "</thinking>", "Error parsing JSON",
         ]):
             continue
-        if s.startswith('{"') or s.startswith('"incident_id"'): continue
-        if re.match(r"^(The user |Looking at |I should |I need to |Let me check|This is a |However,? the kubectl|The incident)", s):
+        if s.startswith('{"') or s.startswith('"incident_id"'):
+            continue
+        if re.match(r"^(The user |Looking at |I should |I need to |Let me |This is a |However|The incident|I have |I'll |Count |Listing |Answering )", s):
             continue
         cleaned.append(s)
 
     text = "\n".join(cleaned).strip()
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    return text if text else "Investigation complete."
-
+    return re.sub(r"\n{3,}", "\n\n", text) if text else "Investigation complete."
 
 STATIC_DIR = PULSE_DIR / "frontend" / "build"
 
@@ -147,8 +161,6 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self.send_json({"error": "not found"}, 404)
 
-        else:
-            self.send_json({"error": "not found"}, 404)
 
     def do_POST(self):
         path = urlparse(self.path).path
@@ -225,7 +237,8 @@ class Handler(BaseHTTPRequestHandler):
             result = {"messages": []}
 
             def run_chat():
-                clean = answer_question_with_bob(msg, context, chat_history)
+                raw = answer_question_with_bob(msg, context, chat_history)
+                clean = clean_bob_response(raw)
                 add_chat_message(incident_id, "bob", clean)
                 result["messages"] = get_chat_messages(incident_id)
 
@@ -265,6 +278,42 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self.send_json({"status": "rejected"})
 
+        # ── Infra chat (no incident context) ──────────────────────────────
+        elif path == "/api/infra/chat":
+            msg = body.get("message", "").strip()
+            if not msg:
+                self.send_json({"error": "empty message"}, 400)
+                return
+
+            history_lines = []
+            for m in body.get("history", [])[-6:]:
+                role_label = "Engineer" if m["role"] == "user" else "Pulse"
+                history_lines.append(f"{role_label}: {m['content'][:200]}")
+            chat_history = "\n".join(history_lines)
+
+            context = (
+                "You are an infra assistant for the Pulse platform. "
+                "Services: checkout-svc, inventory-svc, db-primary. "
+                "Answer questions about pods, metrics, logs, deployments, latency, errors, and kubectl. "
+                "Always check live data before answering. "
+                "Normal thresholds: latency_p99 under 200ms is healthy, 200-500ms is degraded, above 500ms is critical. "
+                "error_rate under 10/min is healthy, above 10/min is elevated. "
+                "cpu under 80% is healthy, above 80% is high. "
+                "memory under 85% is healthy, above 85% is critical. "
+                "Always state whether the value is normal or not after reporting it. "
+                "Answer in 2-4 sentences max. Do not reference specific incidents unless asked."
+            )
+
+            result = {"reply": ""}
+
+            def run_infra_chat():
+                raw = answer_question_with_bob(msg, context, chat_history)
+                result["reply"] = clean_bob_response(raw)
+
+            t = threading.Thread(target=run_infra_chat, daemon=True)
+            t.start()
+            t.join(timeout=90)
+            self.send_json({"reply": result.get("reply") or "No response."})
         else:
             self.send_json({"error": "not found"}, 404)
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-export default function Topbar({ incidents }) {
+export default function Topbar({ incidents, onGoHome }) {
   const [clock, setClock] = useState('--:--:--');
 
   useEffect(() => {
@@ -15,7 +15,14 @@ export default function Topbar({ incidents }) {
 
   return (
     <div className="topbar">
-      <div className="logo">PULSE<em>.</em></div>
+      <div
+        className="logo"
+        onClick={onGoHome}
+        style={{ cursor: 'pointer' }}
+        title="Back to Infra Assistant"
+      >
+        PULSE<em>.</em>
+      </div>
       <div className="topbar-right">
         <div className="live-dot" />
         <span>{clock}</span>

@@ -11,15 +11,16 @@ export default function ChatPanel({ incident, messages, onMessagesUpdate }) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, thinking]);
 
-  async function sendChat() {
+async function sendChat() {
     if (!incident || !input.trim() || sending) return;
     const msg = input.trim();
     setInput('');
     setSending(true);
     setThinking(true);
 
-    // Optimistically add user message
-    onMessagesUpdate([...messages, { role: 'user', content: msg }]);
+    // Optimistically add user message for immediate feedback
+    const optimistic = [...messages, { role: 'user', content: msg }];
+    onMessagesUpdate(optimistic);
 
     try {
       const r = await fetch(`/api/incidents/${incident.id}/chat`, {
@@ -28,15 +29,16 @@ export default function ChatPanel({ incident, messages, onMessagesUpdate }) {
         body: JSON.stringify({ message: msg }),
       });
       const data = await r.json();
-      onMessagesUpdate(data.messages || messages);
+      // DB response is authoritative — use it directly, it includes the user msg
+      onMessagesUpdate(data.messages || optimistic);
     } catch (e) {
-      onMessagesUpdate([...messages, { role: 'user', content: msg }, { role: 'bob', content: 'Sorry, encountered an error. Please try again.' }]);
+      onMessagesUpdate([...optimistic, { role: 'bob', content: 'Sorry, encountered an error. Please try again.' }]);
     } finally {
       setSending(false);
       setThinking(false);
     }
   }
-
+  
   function handleKey(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();

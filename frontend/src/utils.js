@@ -43,7 +43,7 @@ export function formatBobResponse(text) {
       html += '<br>';
       continue;
     }
-    const listMatch = line.match(/^(\d+)[.)\s]+(.+)/);
+    const listMatch = line.match(/^(\d+)[.)]\s+(.+)/);
     if (listMatch) {
       if (!inList) { html += '<ol style="margin:6px 0 6px 16px;padding:0">'; inList = true; }
       html += '<li style="margin:3px 0;line-height:1.6">' + listMatch[2] + '</li>';

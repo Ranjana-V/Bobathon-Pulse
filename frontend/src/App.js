@@ -3,13 +3,14 @@ import Topbar from './components/Topbar';
 import IncidentList from './components/IncidentList';
 import RCAPanel from './components/RCAPanel';
 import ChatPanel from './components/ChatPanel';
+import InfraPage from './components/InfraPage';
 import './index.css';
 
 export default function App() {
+  const [page, setPage] = useState('infra'); // 'infra' | 'incidents'
   const [incidents, setIncidents] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [selectedIncident, setSelectedIncident] = useState(null);
-  // chatCache: { [incidentId]: messages[] }
   const chatCache = useRef({});
   const [messages, setMessages] = useState([]);
 
@@ -19,28 +20,19 @@ export default function App() {
       const r = await fetch('/api/incidents');
       const data = await r.json();
       setIncidents(data);
-      // If an incident is selected, refresh its data from the list
-      if (selectedId) {
-        const updated = data.find(i => i.id === selectedId);
-        if (updated) {
-          // Only update non-chat fields here — detail fetch handles the rest
-        }
-      }
     } catch (e) {}
-  }, [selectedId]);
+  }, []);
 
-  // ── Load incident detail (steps, RCA, chat) ─────────────────────────────
+  // ── Load incident detail ────────────────────────────────────────────────
   const loadDetail = useCallback(async (id) => {
     try {
       const r = await fetch(`/api/incidents/${id}`);
       const inc = await r.json();
-      // Parse JSON fields
       inc.steps = typeof inc.steps === 'string' ? JSON.parse(inc.steps || '[]') : (inc.steps || []);
       inc.recommended_actions = typeof inc.recommended_actions === 'string'
         ? JSON.parse(inc.recommended_actions || '[]')
         : (inc.recommended_actions || []);
       setSelectedIncident(inc);
-      // Update chat cache
       chatCache.current[id] = inc.chat || [];
       if (selectedId === id) {
         setMessages(chatCache.current[id]);
@@ -56,7 +48,6 @@ export default function App() {
     await loadDetail(id);
   }
 
-  // ── Update messages from ChatPanel ──────────────────────────────────────
   function handleMessagesUpdate(newMessages) {
     if (selectedId) {
       chatCache.current[selectedId] = newMessages;
@@ -64,7 +55,7 @@ export default function App() {
     setMessages(newMessages);
   }
 
-  // ── Polling: every 2 seconds ────────────────────────────────────────────
+  // ── Polling ─────────────────────────────────────────────────────────────
   useEffect(() => {
     loadIncidents();
     const t = setInterval(async () => {
@@ -74,9 +65,15 @@ export default function App() {
     return () => clearInterval(t);
   }, [loadIncidents, loadDetail, selectedId]);
 
+  // ── Infra page ──────────────────────────────────────────────────────────
+  if (page === 'infra') {
+    return <InfraPage onGoToIncidents={() => setPage('incidents')} />;
+  }
+
+  // ── Incidents page ──────────────────────────────────────────────────────
   return (
     <>
-      <Topbar incidents={incidents} />
+      <Topbar incidents={incidents} onGoHome={() => setPage('infra')} />
       <div className="layout">
         <IncidentList
           incidents={incidents}
