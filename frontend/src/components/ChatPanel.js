@@ -5,31 +5,38 @@ export default function ChatPanel({ incident, messages, onMessagesUpdate }) {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [thinking, setThinking] = useState(false);
+  const [listening, setListening] = useState(false);
   const messagesEndRef = useRef(null);
+  const prevLengthRef = useRef(0);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const currentLength = messages.length + (thinking ? 1 : 0);
+    if (currentLength > prevLengthRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+    prevLengthRef.current = currentLength;
   }, [messages, thinking]);
 
-async function sendChat() {
-    if (!incident || !input.trim() || sending) return;
-    const msg = input.trim();
+  async function sendChat(textOverride, isVoice=false) {
+    const displayMsg = (textOverride || input).trim();
+    if (!incident || !displayMsg || sending) return;
+    const apiMsg = (isVoice && !/(speak|say|voice)/i.test(displayMsg))
+      ? displayMsg + ' — speak the answer'
+      : displayMsg;
     setInput('');
     setSending(true);
     setThinking(true);
 
-    // Optimistically add user message for immediate feedback
-    const optimistic = [...messages, { role: 'user', content: msg }];
+    const optimistic = [...messages, { role: 'user', content: displayMsg }];
     onMessagesUpdate(optimistic);
 
     try {
       const r = await fetch(`/api/incidents/${incident.id}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: msg }),
+        body: JSON.stringify({ message: apiMsg }),
       });
       const data = await r.json();
-      // DB response is authoritative — use it directly, it includes the user msg
       onMessagesUpdate(data.messages || optimistic);
     } catch (e) {
       onMessagesUpdate([...optimistic, { role: 'bob', content: 'Sorry, encountered an error. Please try again.' }]);
@@ -38,12 +45,37 @@ async function sendChat() {
       setThinking(false);
     }
   }
-  
+
   function handleKey(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendChat();
     }
+  }
+
+  function handleVoice() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('Speech recognition is not supported in this browser.');
+      return;
+    }
+    if (listening) return;
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => setListening(true);
+    recognition.onend = () => setListening(false);
+    recognition.onerror = () => setListening(false);
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      sendChat(transcript,true);
+    };
+
+    recognition.start();
   }
 
   return (
@@ -96,8 +128,16 @@ async function sendChat() {
             rows={1}
           />
           <button
+            className="mic-btn"
+            onClick={handleVoice}
+            disabled={sending}
+            title="Voice input"
+          >
+            {listening ? '🔴' : '🎤'}
+          </button>
+          <button
             className="send-btn"
-            onClick={sendChat}
+            onClick={() => sendChat()}
             disabled={!incident || sending || !input.trim()}
           >
             Send

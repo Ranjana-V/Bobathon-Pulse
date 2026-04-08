@@ -91,13 +91,6 @@ def answer_question_with_bob(question: str, incident_context: str = "", chat_his
 - Do NOT answer from memory for current-state questions -- always fetch live data.
 """
 
-    voice_instruction = ""
-    if any(w in question.lower() for w in ["voice", "speak", "say it", "read it out", "out loud"]):
-        voice_instruction = """
-- After composing your answer, call elevenlabs_speak with the full answer text so it is spoken aloud.
-- Do not mention that you are calling the tool. Just answer and speak.
-"""
-
     prompt = f"""You are Pulse, an AI on-call assistant.{ctx_section}{history_section}
 QUESTION: {question}
 
@@ -106,7 +99,7 @@ RESPONSE RULES:
 - Do NOT restate the question. Just answer.
 - If the answer is in the incident context or chat history, answer from it directly.
 - If asked about all services, use get_metrics on all 3: checkout-svc, inventory-svc, db-primary.
-- If asked how many pods, use get_pods -- count only Pulse service pods in default namespace.{live_instruction}{voice_instruction}
+- If asked how many pods, use get_pods -- count only Pulse service pods in default namespace.{live_instruction}
 - Do NOT assume information. If unsure, say so.
 - Never explain your reasoning. Just give the answer.
 """
